@@ -1,18 +1,24 @@
 import cv2
 import numpy as np
-import easyocr
+import pytesseract
 import re
 import base64
 from typing import Optional, Dict, Tuple
 from PIL import Image
 import io
+import os
 
 class OCRService:
     def __init__(self):
-        self.reader = easyocr.Reader(['en'])
+        # Set Tesseract path (update this path according to your installation)
+        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        
+        # Set TESSDATA_PREFIX for language support
+        os.environ['TESSDATA_PREFIX'] = r'C:\Program Files\Tesseract-OCR\tessdata'
+        print("OCR Service initialized with Tesseract")
     
     def preprocess_image(self, image_bytes: bytes) -> np.ndarray:
-        """Preprocess image for better OCR accuracy"""
+        """Preprocess image for better OCR accuracy with Tesseract"""
         # Convert bytes to PIL Image
         pil_image = Image.open(io.BytesIO(image_bytes))
         
@@ -23,31 +29,48 @@ class OCRService:
         gray = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2GRAY)
         
         # Apply Gaussian blur to reduce noise
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
         
-        # Apply adaptive threshold
+        # Apply adaptive threshold for better text detection
         thresh = cv2.adaptiveThreshold(
             blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
         )
         
         # Morphological operations to clean up the image
-        kernel = np.ones((1, 1), np.uint8)
+        kernel = np.ones((2, 2), np.uint8)
         cleaned = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
         cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_OPEN, kernel)
         
         return cleaned
     
     def extract_text(self, image_bytes: bytes) -> str:
-        """Extract text from image using EasyOCR"""
+        """Extract text from image using Tesseract OCR with multiple methods"""
         try:
-            # Preprocess the image
+            # Convert bytes to PIL Image
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            
+            # Method 1: Direct extraction with Tamil + English
+            text1 = pytesseract.image_to_string(pil_image, lang='eng+tam', config='--psm 6')
+            
+            # Method 2: Preprocessed image
             processed_image = self.preprocess_image(image_bytes)
+            pil_processed = Image.fromarray(processed_image)
+            text2 = pytesseract.image_to_string(pil_processed, lang='eng+tam', config='--psm 6')
             
-            # Use EasyOCR to extract text
-            results = self.reader.readtext(processed_image)
+            # Method 3: Different PSM mode for better layout analysis
+            text3 = pytesseract.image_to_string(pil_image, lang='eng+tam', config='--psm 3')
             
-            # Combine all detected text
-            extracted_text = ' '.join([result[1] for result in results])
+            # Combine all extracted text
+            combined_text = f"{text1}\n{text2}\n{text3}"
+            
+            print(f"DEBUG - Tesseract extracted text length: {len(combined_text)}")
+            print(f"DEBUG - First 300 chars: {combined_text[:300]}")
+            
+            return combined_text
+            
+        except Exception as e:
+            print(f"Error extracting text: {str(e)}")
+            return ""
             
             return extracted_text
         except Exception as e:
@@ -79,6 +102,10 @@ class OCRService:
         
         # Multiple patterns for different DOB formats
         dob_patterns = [
+            # Tamil/DOB: 22/10/2004 (mixed Tamil-English format from your Aadhaar)
+            r'நாள்/DOB\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
+            # பிறந்த நாள்/DOB: 22/10/2004 (full Tamil format)
+            r'பிறந்த\s+நாள்/DOB\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
             # DOB: 22/10/2004 or DOB: 22-10-2004
             r'DOB\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
             # Date of Birth: 22/10/2004
@@ -242,17 +269,25 @@ class OCRService:
             
             # Get image dimensions
             height, width = opencv_image.shape[:2]
+            print(f"DEBUG - Image dimensions: {width}x{height}")
             
-            # Aadhaar card photo is typically located in the left side
-            # Standard Aadhaar dimensions ratio and photo position
-            # Photo is usually in the left 1/4 of the card, top 1/2
-            photo_x_start = int(width * 0.05)  # Start 5% from left
-            photo_x_end = int(width * 0.35)    # End at 35% from left
-            photo_y_start = int(height * 0.15)  # Start 15% from top
-            photo_y_end = int(height * 0.75)    # End at 75% from top
+            # Based on your exact Aadhaar image layout
+            # Photo is in left side, starting from roughly 20% from top to 90% height
+            photo_x_start = int(width * 0.01)   # Start 1% from left edge  
+            photo_x_end = int(width * 0.24)     # End at 24% from left (photo width)
+            photo_y_start = int(height * 0.20)  # Start 20% from top
+            photo_y_end = int(height * 0.90)    # End at 90% from top
+            
+            print(f"DEBUG - Photo extraction coordinates: x({photo_x_start}:{photo_x_end}), y({photo_y_start}:{photo_y_end})")
             
             # Extract the photo region
             photo_region = opencv_image[photo_y_start:photo_y_end, photo_x_start:photo_x_end]
+            
+            if photo_region.size == 0:
+                print("DEBUG - Photo region is empty")
+                return None
+            
+            print(f"DEBUG - Photo region size: {photo_region.shape}")
             
             # Convert back to PIL Image
             photo_rgb = cv2.cvtColor(photo_region, cv2.COLOR_BGR2RGB)
@@ -266,6 +301,7 @@ class OCRService:
             photo_pil.save(buffer, format='JPEG', quality=85)
             photo_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
             
+            print(f"DEBUG - Photo extracted successfully, base64 length: {len(photo_base64)}")
             return photo_base64
             
         except Exception as e:
