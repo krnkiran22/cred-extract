@@ -1,7 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { 
   DocumentCheckIcon, 
-  FaceSmileIcon, 
   PhoneIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -12,13 +11,10 @@ import {
 
 // Types and Interfaces
 interface AadhaarData {
-  name?: string;
-  date_of_birth?: string;
-  gender?: string;
-  phone?: string;
   aadhaar_number?: string;
-  address?: string;
-  father_name?: string;
+  phone_number?: string;
+  dob?: string;
+  aadhaar_photo_base64?: string;
 }
 
 interface ApiResponse {
@@ -43,17 +39,17 @@ interface StepProps {
   icon: React.ReactNode;
 }
 
-// Sui-themed Step Component
-const SuiStep: React.FC<StepProps> = ({ number, title, description, isActive, isCompleted, icon }) => (
-  <div className={`sui-step ${isActive ? 'active' : ''}`}>
-    <div className={`sui-step-icon ${isCompleted ? 'completed' : isActive ? 'active' : 'inactive'}`}>
+// Teal-themed Step Component
+const TealStep: React.FC<StepProps> = ({ number, title, description, isActive, isCompleted, icon }) => (
+  <div className={`teal-step ${isActive ? 'active' : ''}`}>
+    <div className={`teal-step-icon ${isCompleted ? 'completed' : isActive ? 'active' : 'inactive'}`}>
       {isCompleted ? <CheckCircleIcon className="w-8 h-8" /> : icon}
     </div>
     <div className="flex-1">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-gray-500">Step {number}</span>
         {isActive && (
-          <div className="sui-loading"></div>
+          <div className="teal-loading"></div>
         )}
       </div>
       <h3 className="text-xl font-bold text-gray-900 mb-1">{title}</h3>
@@ -62,7 +58,7 @@ const SuiStep: React.FC<StepProps> = ({ number, title, description, isActive, is
   </div>
 );
 
-// Sui-themed File Upload Component
+// Teal-themed File Upload Component
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
   accept: string;
@@ -72,7 +68,7 @@ interface FileUploadProps {
   disabled?: boolean;
 }
 
-const SuiFileUpload: React.FC<FileUploadProps> = ({ 
+const TealFileUpload: React.FC<FileUploadProps> = ({ 
   onFileSelect, 
   accept, 
   title, 
@@ -108,7 +104,7 @@ const SuiFileUpload: React.FC<FileUploadProps> = ({
 
   return (
     <div 
-      className={`sui-upload-zone ${isDragOver ? 'dragover' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`teal-upload-zone ${isDragOver ? 'dragover' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       onDrop={handleDrop}
       onDragOver={(e) => { e.preventDefault(); if (!disabled) setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
@@ -125,18 +121,18 @@ const SuiFileUpload: React.FC<FileUploadProps> = ({
       
       <div className="flex flex-col items-center">
         <CloudArrowUpIcon className={`w-16 h-16 mb-4 transition-colors ${
-          isDragOver ? 'text-green-500' : 'text-blue-500'
+          isDragOver ? 'text-teal-accent' : 'text-teal-primary'
         }`} />
         <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
         <p className="text-gray-600 mb-4 text-center">{description}</p>
         
         {isLoading ? (
           <div className="flex items-center gap-2">
-            <div className="sui-loading"></div>
+            <div className="teal-loading"></div>
             <span className="text-gray-600">Processing...</span>
           </div>
         ) : (
-          <button className="sui-button" disabled={disabled}>
+          <button className="teal-button" disabled={disabled}>
             <CameraIcon className="w-5 h-5 mr-2" />
             Choose File or Drop Here
           </button>
@@ -146,7 +142,7 @@ const SuiFileUpload: React.FC<FileUploadProps> = ({
   );
 };
 
-// Sui-themed Result Display Component
+// Teal-themed Result Display Component
 interface ResultDisplayProps {
   data: any;
   type: 'success' | 'error';
@@ -154,46 +150,60 @@ interface ResultDisplayProps {
   onRetry?: () => void;
 }
 
-const SuiResultDisplay: React.FC<ResultDisplayProps> = ({ data, type, title, onRetry }) => (
-  <div className={`sui-result-card ${type} mb-6`}>
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-3">
-        {type === 'success' ? (
-          <CheckCircleIcon className="w-8 h-8 text-green-600" />
-        ) : (
-          <ExclamationTriangleIcon className="w-8 h-8 text-red-600" />
+const TealResultDisplay: React.FC<ResultDisplayProps> = ({ data, type, title, onRetry }) => {
+  // Filter to show only the 3 required fields: DOB, Aadhaar number, and phone number
+  const filteredData = data && typeof data === 'object' ? (() => {
+    const filtered: any = {};
+    if (data.aadhaar_number) filtered.aadhaar_number = data.aadhaar_number;
+    if (data.phone_number) filtered.phone_number = data.phone_number;
+    if (data.dob) filtered.dob = data.dob;
+    return filtered;
+  })() : data;
+
+  return (
+    <div className={`teal-result-card ${type} mb-6`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          {type === 'success' ? (
+            <CheckCircleIcon className="w-8 h-8 text-teal-600" />
+          ) : (
+            <ExclamationTriangleIcon className="w-8 h-8 text-red-600" />
+          )}
+          <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+        </div>
+        {type === 'error' && onRetry && (
+          <button onClick={onRetry} className="teal-button text-sm px-4 py-2">
+            Retry
+          </button>
         )}
-        <h3 className="text-xl font-bold text-gray-900">{title}</h3>
       </div>
-      {type === 'error' && onRetry && (
-        <button onClick={onRetry} className="sui-button text-sm px-4 py-2">
-          Retry
-        </button>
+      
+      {type === 'success' && filteredData && typeof filteredData === 'object' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Object.entries(filteredData).map(([key, value]) => 
+            value ? (
+              <div key={key} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <span className="text-sm font-semibold text-teal-600 uppercase tracking-wide block mb-2">
+                  {key === 'aadhaar_number' ? 'Aadhaar Number' : 
+                   key === 'phone_number' ? 'Phone Number' : 
+                   key === 'dob' ? 'Date of Birth' : 
+                   key.replace(/_/g, ' ')}
+                </span>
+                <p className="text-gray-900 font-medium text-lg">{String(value)}</p>
+              </div>
+            ) : null
+          )}
+        </div>
+      )}
+      
+      {type === 'error' && (
+        <p className="text-red-700 bg-red-50 p-3 rounded-lg">{
+          typeof data === 'string' ? data : data?.message || 'An error occurred'
+        }</p>
       )}
     </div>
-    
-    {type === 'success' && data && typeof data === 'object' && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {Object.entries(data).map(([key, value]) => 
-          value ? (
-            <div key={key} className="bg-white p-3 rounded-lg border border-gray-200">
-              <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                {key.replace(/_/g, ' ')}
-              </span>
-              <p className="text-gray-900 font-medium mt-1">{String(value)}</p>
-            </div>
-          ) : null
-        )}
-      </div>
-    )}
-    
-    {type === 'error' && (
-      <p className="text-red-700 bg-red-50 p-3 rounded-lg">{
-        typeof data === 'string' ? data : data?.message || 'An error occurred'
-      }</p>
-    )}
-  </div>
-);
+  );
+};
 
 // Main App Component
 const App: React.FC = () => {
@@ -205,8 +215,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
-  const [aadhaarSessionId, setAadhaarSessionId] = useState('');
-  const [liveSessionId, setLiveSessionId] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
   // API Configuration
@@ -239,8 +247,6 @@ const App: React.FC = () => {
     setOtpResult(null);
     setError(null);
     setOtpCode('');
-    setAadhaarSessionId('');
-    setLiveSessionId('');
     setPhoneNumber('');
   };
 
@@ -253,7 +259,7 @@ const App: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const result = await handleApiCall('/api/aadhaar/upload-aadhaar-photo', formData);
+      const result = await handleApiCall('/api/aadhaar/extract-aadhaar-data', formData);
       
       if (result.success && result.data) {
         setAadhaarData(result.data);
@@ -268,72 +274,44 @@ const App: React.FC = () => {
     }
   };
 
-  // Step 2: Upload Aadhaar Face Photo
-  const handleAadhaarFaceUpload = async (file: File) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const result = await handleApiCall('/api/face/upload-aadhaar-face', formData);
-      
-      if (result.success && result.data?.session_id) {
-        setAadhaarSessionId(result.data.session_id);
-        setCurrentStep(3);
-      } else {
-        setError(result.message || 'Failed to process face from Aadhaar. Please ensure the face is clearly visible.');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred while processing the face image');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Step 3: Upload Live Photo and Compare
+  // Step 2: Upload Live Photo and Compare with Aadhaar
   const handleLivePhotoUpload = async (file: File) => {
     setIsLoading(true);
     setError(null);
     
     try {
-      // First upload the live photo
-      const formData = new FormData();
-      formData.append('file', file);
+      // Convert file to base64
+      const livePhotoBase64 = await fileToBase64(file);
       
-      const uploadResult = await handleApiCall('/api/face/upload-live-photo', formData);
-      
-      if (uploadResult.success && uploadResult.data?.session_id) {
-        setLiveSessionId(uploadResult.data.session_id);
-        
-        // Then compare faces
-        await compareFaces(aadhaarSessionId, uploadResult.data.session_id);
-      } else {
-        setError(uploadResult.message || 'Failed to process live photo. Please ensure the face is clearly visible.');
+      if (!aadhaarData?.aadhaar_photo_base64) {
+        setError('Aadhaar photo not found. Please upload Aadhaar card first.');
+        return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred while processing the live photo');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Compare faces using session IDs
-  const compareFaces = async (aadhaarSId: string, liveSId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append('aadhaar_session_id', aadhaarSId);
-      formData.append('live_session_id', liveSId);
       
-      const result = await handleApiCall('/api/face/compare-faces', formData);
+      // Use the verify-face endpoint with both images
+      const response = await fetch(`${API_BASE}/api/face/verify-face`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          aadhaar_photo_base64: aadhaarData.aadhaar_photo_base64,
+          live_photo_base64: livePhotoBase64
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
       
       if (result.success && result.data) {
         setFaceResult(result.data);
         
-        if (result.data.match && aadhaarData?.phone) {
-          setPhoneNumber(aadhaarData.phone);
-          setCurrentStep(4);
+        if (result.data.match && aadhaarData?.phone_number) {
+          setPhoneNumber(aadhaarData.phone_number);
+          setCurrentStep(3);
         } else if (!result.data.match) {
           setError('Face verification failed. The uploaded photos do not match.');
         } else {
@@ -344,7 +322,24 @@ const App: React.FC = () => {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Face comparison failed');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Utility function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:image/jpeg;base64, prefix
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+    });
   };
 
   // Step 4: Generate OTP
@@ -359,7 +354,7 @@ const App: React.FC = () => {
       const result = await handleApiCall('/api/otp/generate-otp', formData);
       
       if (result.success) {
-        setCurrentStep(5);
+        setCurrentStep(4);
       } else {
         setError(result.message || 'Failed to generate OTP. Please check the phone number.');
       }
@@ -384,7 +379,7 @@ const App: React.FC = () => {
       
       if (result.success) {
         setOtpResult(result.data);
-        setCurrentStep(6);
+        setCurrentStep(5);
       } else {
         setError(result.message || 'OTP verification failed. Please check the code and try again.');
       }
@@ -407,49 +402,41 @@ const App: React.FC = () => {
     },
     {
       number: 2,
-      title: "Face from Aadhaar",
-      description: "Upload the face photo section from your Aadhaar card",
-      icon: <FaceSmileIcon className="w-8 h-8" />,
+      title: "Live Photo Verification",
+      description: "Take or upload a current photo for face verification",
+      icon: <CameraIcon className="w-8 h-8" />,
       isActive: currentStep === 2,
       isCompleted: currentStep > 2
     },
     {
       number: 3,
-      title: "Live Photo",
-      description: "Take or upload a current photo for face verification",
-      icon: <CameraIcon className="w-8 h-8" />,
+      title: "Generate OTP",
+      description: "Send OTP to your registered mobile number",
+      icon: <PhoneIcon className="w-8 h-8" />,
       isActive: currentStep === 3,
       isCompleted: currentStep > 3
     },
     {
       number: 4,
-      title: "Generate OTP",
-      description: "Send OTP to your registered mobile number",
-      icon: <PhoneIcon className="w-8 h-8" />,
-      isActive: currentStep === 4,
-      isCompleted: currentStep > 4
-    },
-    {
-      number: 5,
       title: "Verify OTP",
       description: "Enter the OTP received on your mobile",
       icon: <CheckCircleIcon className="w-8 h-8" />,
-      isActive: currentStep === 5,
-      isCompleted: currentStep > 5
+      isActive: currentStep === 4,
+      isCompleted: currentStep > 4
     }
   ];
 
-  const progressPercentage = ((currentStep - 1) / 5) * 100;
+  const progressPercentage = ((currentStep - 1) / 4) * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       {/* Header Section */}
       <div className="max-w-6xl mx-auto mb-8">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2 sui-pulse">
+          <h1 className="text-4xl font-bold text-white mb-2 teal-pulse">
             Sui Foundry
           </h1>
-          <h2 className="text-2xl font-semibold text-blue-400 mb-4">
+          <h2 className="text-2xl font-semibold text-teal-400 mb-4">
             Aadhaar Verification System
           </h2>
           <p className="text-gray-300 max-w-2xl mx-auto">
@@ -458,9 +445,9 @@ const App: React.FC = () => {
         </div>
 
         {/* Progress Bar */}
-        <div className="sui-progress-bar">
+        <div className="teal-progress-bar">
           <div 
-            className="sui-progress-fill"
+            className="teal-progress-fill"
             style={{ width: `${progressPercentage}%` }}
           ></div>
         </div>
@@ -470,18 +457,18 @@ const App: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Steps Sidebar */}
           <div className="lg:col-span-1">
-            <div className="sui-card p-6 sticky top-6">
+            <div className="teal-card p-6 sticky top-6">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Verification Steps</h3>
               <div className="space-y-4">
                 {steps.map((step) => (
-                  <SuiStep key={step.number} {...step} />
+                  <TealStep key={step.number} {...step} />
                 ))}
               </div>
               
               {currentStep > 1 && (
                 <button 
                   onClick={resetProcess}
-                  className="w-full mt-6 sui-button bg-gray-600 hover:bg-gray-700"
+                  className="w-full mt-6 teal-button bg-gray-600 hover:bg-gray-700"
                 >
                   Start Over
                 </button>
@@ -491,10 +478,10 @@ const App: React.FC = () => {
 
           {/* Main Content */}
           <div className="lg:col-span-2">
-            <div className="sui-card p-8">
+            <div className="teal-card p-8">
               {/* Error Display */}
               {error && (
-                <SuiResultDisplay 
+                <TealResultDisplay 
                   data={error} 
                   type="error" 
                   title="Error Occurred"
@@ -506,7 +493,7 @@ const App: React.FC = () => {
               {currentStep === 1 && (
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload Aadhaar Card</h2>
-                  <SuiFileUpload
+                  <TealFileUpload
                     onFileSelect={handleAadhaarUpload}
                     accept="image/*"
                     title="Upload Aadhaar Card Image"
@@ -518,32 +505,18 @@ const App: React.FC = () => {
 
               {/* Display Extracted Aadhaar Data */}
               {aadhaarData && currentStep > 1 && (
-                <SuiResultDisplay 
+                <TealResultDisplay 
                   data={aadhaarData} 
                   type="success" 
                   title="Aadhaar Data Extracted Successfully" 
                 />
               )}
 
-              {/* Step 2: Aadhaar Face Upload */}
+              {/* Step 2: Live Photo Upload */}
               {currentStep === 2 && (
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload Face from Aadhaar</h2>
-                  <SuiFileUpload
-                    onFileSelect={handleAadhaarFaceUpload}
-                    accept="image/*"
-                    title="Upload Face Section"
-                    description="Upload a clear crop of the face photo portion from your Aadhaar card"
-                    isLoading={isLoading}
-                  />
-                </div>
-              )}
-
-              {/* Step 3: Live Photo Upload */}
-              {currentStep === 3 && (
-                <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload Live Photo</h2>
-                  <SuiFileUpload
+                  <TealFileUpload
                     onFileSelect={handleLivePhotoUpload}
                     accept="image/*"
                     title="Upload Current Photo"
@@ -554,8 +527,8 @@ const App: React.FC = () => {
               )}
 
               {/* Display Face Match Results */}
-              {faceResult && currentStep > 3 && (
-                <SuiResultDisplay 
+              {faceResult && currentStep > 2 && (
+                <TealResultDisplay 
                   data={{
                     match_status: faceResult.match ? 'Verified' : 'Failed',
                     confidence: `${Math.round((faceResult.confidence || 0) * 100)}%`,
@@ -566,8 +539,8 @@ const App: React.FC = () => {
                 />
               )}
 
-              {/* Step 4: Generate OTP */}
-              {currentStep === 4 && (
+              {/* Step 3: Generate OTP */}
+              {currentStep === 3 && (
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Generate OTP</h2>
                   <div className="text-center">
@@ -578,11 +551,11 @@ const App: React.FC = () => {
                     <button 
                       onClick={generateOtp}
                       disabled={isLoading}
-                      className="sui-button text-lg px-8 py-3"
+                      className="teal-button text-lg px-8 py-3"
                     >
                       {isLoading ? (
                         <div className="flex items-center gap-2">
-                          <div className="sui-loading"></div>
+                          <div className="teal-loading"></div>
                           Sending OTP...
                         </div>
                       ) : (
@@ -596,8 +569,8 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Step 5: Verify OTP */}
-              {currentStep === 5 && (
+              {/* Step 4: Verify OTP */}
+              {currentStep === 4 && (
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Verify OTP</h2>
                   <div className="max-w-md mx-auto">
@@ -610,16 +583,16 @@ const App: React.FC = () => {
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder="Enter OTP"
                       maxLength={6}
-                      className="sui-input text-center text-2xl tracking-wider mb-6 font-bold"
+                      className="teal-input text-center text-2xl tracking-wider mb-6 font-bold"
                     />
                     <button 
                       onClick={verifyOtp}
                       disabled={isLoading || otpCode.length !== 6}
-                      className="sui-button w-full text-lg py-3"
+                      className="teal-button w-full text-lg py-3"
                     >
                       {isLoading ? (
                         <div className="flex items-center justify-center gap-2">
-                          <div className="sui-loading"></div>
+                          <div className="teal-loading"></div>
                           Verifying...
                         </div>
                       ) : (
@@ -630,10 +603,10 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Step 6: Success */}
-              {currentStep === 6 && otpResult && (
+              {/* Step 5: Success */}
+              {currentStep === 5 && otpResult && (
                 <div className="text-center">
-                  <SuiResultDisplay 
+                  <TealResultDisplay 
                     data={{
                       verification_status: 'Complete',
                       aadhaar_verified: 'Yes',
@@ -650,7 +623,7 @@ const App: React.FC = () => {
                     </p>
                     <button 
                       onClick={resetProcess}
-                      className="sui-button text-lg px-8 py-3"
+                      className="teal-button text-lg px-8 py-3"
                     >
                       Start New Verification
                     </button>

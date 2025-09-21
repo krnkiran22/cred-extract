@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 
 from app.routers import aadhaar, face, otp
 from app.services.ocr_service import OCRService
-from app.services.face_service import FaceService
+from app.services.yolo_face_service import YOLOFaceService
 from app.services.otp_service import OTPService
 
 # Configure logging
@@ -19,19 +19,19 @@ logger = logging.getLogger(__name__)
 
 # Global services
 ocr_service = None
-face_service = None
+yolo_face_service = None
 otp_service = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global ocr_service, face_service, otp_service
+    global ocr_service, yolo_face_service, otp_service
     
     logger.info("Starting Aadhaar Verification System...")
     
     # Initialize services
     ocr_service = OCRService()
-    face_service = FaceService()
+    yolo_face_service = YOLOFaceService()
     otp_service = OTPService()
     
     logger.info("All services initialized successfully")
@@ -98,7 +98,7 @@ async def health_check():
     
     # Check Face service
     try:
-        if face_service and await face_service.health_check():
+        if yolo_face_service and await yolo_face_service.health_check():
             health_status["services"]["face"] = "healthy"
         else:
             health_status["services"]["face"] = "unhealthy"
@@ -127,11 +127,11 @@ def get_ocr_service():
         raise HTTPException(status_code=503, detail="OCR service not available")
     return ocr_service
 
-def get_face_service():
-    global face_service
-    if not face_service:
-        raise HTTPException(status_code=503, detail="Face service not available")
-    return face_service
+def get_yolo_face_service():
+    global yolo_face_service
+    if not yolo_face_service:
+        raise HTTPException(status_code=503, detail="YOLO Face service not available")
+    return yolo_face_service
 
 def get_otp_service():
     global otp_service

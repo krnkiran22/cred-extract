@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/upload-aadhaar-photo", response_model=APIResponse)
-async def upload_aadhaar_photo(
+@router.post("/extract-aadhaar-data", response_model=APIResponse)
+async def extract_aadhaar_data(
     file: UploadFile = File(...),
     ocr_service: OCRService = Depends(get_ocr_service)
 ):
-    """Upload and process Aadhaar photo to extract text data"""
+    """Extract Aadhaar number, phone number, DOB, and photo from Aadhaar front image"""
     try:
         # Validate file type
         if not file.content_type or not file.content_type.startswith('image/'):
@@ -37,30 +37,44 @@ async def upload_aadhaar_photo(
                 detail="Empty file uploaded."
             )
         
-        # Process Aadhaar image and extract data
+        # Process Aadhaar image and extract focused data
         logger.info(f"Processing Aadhaar image: {file.filename}")
-        aadhaar_data = ocr_service.extract_aadhaar_data(file_content)
+        result = ocr_service.extract_aadhaar_data(file_content)
         
-        # Validate that we extracted some meaningful data
-        extracted_fields = sum(1 for value in aadhaar_data.values() if value is not None and value != '')
-        
-        if extracted_fields < 2:  # At least 2 fields should be extracted
-            logger.warning(f"Low extraction quality: only {extracted_fields} fields extracted")
-            return APIResponse(
-                success=True,
-                message="Image processed but limited data extracted. Please ensure the image is clear and contains Aadhaar information.",
-                data=aadhaar_data
+        if not result.get('success', False):
+            logger.error(f"Error processing Aadhaar photo: {result.get('error', 'Unknown error')}")
+            raise HTTPException(
+                status_code=500,
+                detail=result.get('error', 'Failed to process Aadhaar image')
             )
         
-        logger.info(f"Successfully extracted {extracted_fields} fields from Aadhaar")
+        # Count successfully extracted fields
+        extracted_count = sum(1 for key in ['aadhaar_number', 'phone_number', 'dob'] 
+                            if result.get(key) is not None)
+        
+        if extracted_count == 0:
+            logger.warning("No data could be extracted from the Aadhaar image")
+            return APIResponse(
+                success=True,
+                message="Image processed but no readable data found. Please upload a clearer image.",
+                data=result
+            )
+        
+        logger.info(f"Successfully extracted {extracted_count} fields from Aadhaar")
         return APIResponse(
             success=True,
-            message="Aadhaar data extracted successfully",
-            data=aadhaar_data
+            message=f"Aadhaar data extracted successfully. Found {extracted_count} fields.",
+            data=result
         )
-    
+        
     except HTTPException:
         raise
+    except Exception as e:
+        logger.error(f"Error processing Aadhaar photo: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing Aadhaar photo: {str(e)}"
+        )
     except Exception as e:
         logger.error(f"Error processing Aadhaar photo: {str(e)}")
         raise HTTPException(

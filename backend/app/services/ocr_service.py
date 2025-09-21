@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import easyocr
 import re
-from typing import Optional, Dict
+import base64
+from typing import Optional, Dict, Tuple
 from PIL import Image
 import io
 
@@ -73,22 +74,63 @@ class OCRService:
         return None
     
     def extract_dob(self, text: str) -> Optional[str]:
-        """Extract date of birth from Aadhaar text"""
-        # Patterns for date of birth
+        """Extract date of birth from Aadhaar text with improved regex"""
+        print(f"DEBUG - Searching for DOB in text: {text[:200]}...")
+        
+        # Multiple patterns for different DOB formats
         dob_patterns = [
-            r'(?:DOB|Date of Birth|Born)[\s:]*(\d{2}[/-]\d{2}[/-]\d{4})',
-            r'(?:DOB|Date of Birth|Born)[\s:]*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
-            r'(\d{2}[/-]\d{2}[/-]\d{4})',
-            r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
+            # DOB: 22/10/2004 or DOB: 22-10-2004
+            r'DOB\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
+            # Date of Birth: 22/10/2004
+            r'Date\s+of\s+Birth\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
+            # Born: 22/10/2004
+            r'Born\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
+            # Standalone date patterns (DD/MM/YYYY or DD-MM-YYYY)
+            r'\b(\d{1,2}[/-]\d{1,2}[/-](?:19|20)\d{2})\b',
+            # Common Aadhaar formats
+            r'(\d{2}/\d{2}/\d{4})',
+            r'(\d{2}-\d{2}-\d{4})'
         ]
         
-        for pattern in dob_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                dob = match.group(1)
-                # Standardize format to DD/MM/YYYY
-                dob = re.sub(r'[-]', '/', dob)
-                return dob
+        for i, pattern in enumerate(dob_patterns):
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            print(f"DEBUG - Pattern {i+1} '{pattern}' found: {matches}")
+            
+            for match in matches:
+                if isinstance(match, tuple):
+                    dob = match[0] if match[0] else match
+                else:
+                    dob = match
+                
+                # Validate date format and range
+                if self._is_valid_date(dob):
+                    # Standardize format to DD/MM/YYYY
+                    dob = re.sub(r'[-]', '/', dob)
+                    print(f"DEBUG - Valid DOB found: {dob}")
+                    return dob
+        
+        print("DEBUG - No valid DOB found")
+        return None
+    
+    def _is_valid_date(self, date_str: str) -> bool:
+        """Validate if the date string is a reasonable birth date"""
+        try:
+            # Remove any extra spaces and standardize separators
+            date_str = re.sub(r'[-]', '/', date_str.strip())
+            
+            # Parse date
+            day, month, year = map(int, date_str.split('/'))
+            
+            # Basic validation
+            if not (1 <= day <= 31 and 1 <= month <= 12 and 1900 <= year <= 2010):
+                return False
+            
+            # Additional validation with datetime
+            from datetime import datetime
+            datetime(year, month, day)
+            return True
+        except (ValueError, IndexError):
+            return False
         
         return None
     
@@ -110,38 +152,58 @@ class OCRService:
         return None
     
     def extract_phone(self, text: str) -> Optional[str]:
-        """Extract phone number from Aadhaar text"""
-        # Pattern for Indian mobile numbers
+        """Extract phone number from Aadhaar text with improved regex"""
+        print(f"DEBUG - Searching for phone in text: {text[:200]}...")
+        
+        # Multiple patterns for different phone formats
         phone_patterns = [
-            r'(?:Mobile|Phone|Mob)[\s:]*([6-9]\d{9})',
-            r'\b([6-9]\d{9})\b'
+            # Mobile: 9876543210 or Phone: 9876543210
+            r'(?:Mobile|Phone|Mob|Contact)\s*:?\s*([6-9]\d{9})',
+            # Standalone 10-digit numbers starting with 6-9
+            r'\b([6-9]\d{9})\b',
+            # Numbers with spaces or dashes (e.g., 98765 43210 or 9876-5-43210)
+            r'\b([6-9]\d{4})\s*[-\s]*(\d{5})\b',
+            # With country code patterns
+            r'\+91\s*([6-9]\d{9})',
+            r'91\s*([6-9]\d{9})'
         ]
         
-        for pattern in phone_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                phone = match.group(1)
-                if len(phone) == 10 and phone[0] in '6789':
+        for i, pattern in enumerate(phone_patterns):
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            print(f"DEBUG - Phone pattern {i+1} '{pattern}' found: {matches}")
+            
+            for match in matches:
+                if isinstance(match, tuple):
+                    # Handle patterns with multiple groups (like space-separated numbers)
+                    if len(match) == 2 and match[0] and match[1]:
+                        phone = match[0] + match[1]  # Combine parts
+                    else:
+                        phone = match[0] if match[0] else match[1]
+                else:
+                    phone = match
+                
+                # Validate phone number
+                phone = re.sub(r'[\s-]', '', phone)  # Remove spaces and dashes
+                if len(phone) == 10 and phone.isdigit() and phone[0] in '6789':
+                    print(f"DEBUG - Valid phone found: {phone}")
                     return phone
         
+        print("DEBUG - No valid phone found")
         return None
     
     def extract_aadhaar_number(self, text: str) -> Optional[str]:
-        """Extract Aadhaar number from text"""
-        # Pattern for Aadhaar number (12 digits with optional spaces)
-        aadhaar_patterns = [
-            r'\b(\d{4}\s?\d{4}\s?\d{4})\b',
-            r'\b(\d{12})\b'
-        ]
+        """Extract Aadhaar number from text with improved regex"""
+        # Improved pattern for Aadhaar number (12-digit starting with 2-9, spaces allowed)
+        aadhaar_regex = r"\b[2-9]{1}[0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b"
         
-        for pattern in aadhaar_patterns:
-            matches = re.findall(pattern, text)
-            for match in matches:
-                # Remove spaces and check if it's a valid Aadhaar format
-                aadhaar = re.sub(r'\s', '', match)
-                if len(aadhaar) == 12 and aadhaar.isdigit():
-                    # Format as XXXX XXXX XXXX
-                    return f"{aadhaar[:4]} {aadhaar[4:8]} {aadhaar[8:]}"
+        match = re.search(aadhaar_regex, text)
+        if match:
+            aadhaar = match.group(0)
+            # Remove any existing spaces and reformat
+            aadhaar_clean = re.sub(r'\s', '', aadhaar)
+            if len(aadhaar_clean) == 12 and aadhaar_clean.isdigit():
+                # Format as XXXX XXXX XXXX for display
+                return f"{aadhaar_clean[:4]} {aadhaar_clean[4:8]} {aadhaar_clean[8:]}"
         
         return None
     
@@ -169,32 +231,82 @@ class OCRService:
         
         return None
     
+    def extract_photo_from_aadhaar(self, image_bytes: bytes) -> Optional[str]:
+        """Extract user photo from Aadhaar card and return as base64"""
+        try:
+            # Convert bytes to PIL Image
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            
+            # Convert PIL to OpenCV format
+            opencv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+            
+            # Get image dimensions
+            height, width = opencv_image.shape[:2]
+            
+            # Aadhaar card photo is typically located in the left side
+            # Standard Aadhaar dimensions ratio and photo position
+            # Photo is usually in the left 1/4 of the card, top 1/2
+            photo_x_start = int(width * 0.05)  # Start 5% from left
+            photo_x_end = int(width * 0.35)    # End at 35% from left
+            photo_y_start = int(height * 0.15)  # Start 15% from top
+            photo_y_end = int(height * 0.75)    # End at 75% from top
+            
+            # Extract the photo region
+            photo_region = opencv_image[photo_y_start:photo_y_end, photo_x_start:photo_x_end]
+            
+            # Convert back to PIL Image
+            photo_rgb = cv2.cvtColor(photo_region, cv2.COLOR_BGR2RGB)
+            photo_pil = Image.fromarray(photo_rgb)
+            
+            # Resize to standard size (passport photo size)
+            photo_pil = photo_pil.resize((150, 200), Image.LANCZOS)
+            
+            # Convert to base64
+            buffer = io.BytesIO()
+            photo_pil.save(buffer, format='JPEG', quality=85)
+            photo_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            
+            return photo_base64
+            
+        except Exception as e:
+            print(f"Error extracting photo: {str(e)}")
+            return None
+    
     def extract_aadhaar_data(self, image_bytes: bytes) -> Dict:
-        """Extract all Aadhaar data from image"""
+        """Extract focused Aadhaar data: Aadhaar number, phone, DOB, and photo"""
         try:
             # Extract text from image
             extracted_text = self.extract_text(image_bytes)
+            print(f"DEBUG - Extracted text: {extracted_text}")
             
-            # Extract individual fields
-            name = self.extract_name(extracted_text)
-            dob = self.extract_dob(extracted_text)
-            gender = self.extract_gender(extracted_text)
-            phone = self.extract_phone(extracted_text)
+            # Extract only the three required fields
             aadhaar_number = self.extract_aadhaar_number(extracted_text)
-            address = self.extract_address(extracted_text)
+            print(f"DEBUG - Aadhaar number: {aadhaar_number}")
+            
+            phone = self.extract_phone(extracted_text)
+            print(f"DEBUG - Phone: {phone}")
+            
+            dob = self.extract_dob(extracted_text)
+            print(f"DEBUG - DOB: {dob}")
+            
+            # Extract user photo from Aadhaar
+            aadhaar_photo_base64 = self.extract_photo_from_aadhaar(image_bytes)
+            print(f"DEBUG - Photo extracted: {aadhaar_photo_base64 is not None}")
             
             return {
-                'name': name,
-                'date_of_birth': dob,
-                'gender': gender,
-                'phone': phone,
                 'aadhaar_number': aadhaar_number,
-                'address': address,
-                'raw_text': extracted_text
+                'phone_number': phone,
+                'dob': dob,
+                'aadhaar_photo_base64': aadhaar_photo_base64,
+                'raw_text': extracted_text,
+                'success': True
             }
-        
         except Exception as e:
-            raise Exception(f"Error processing Aadhaar data: {str(e)}")
+            print(f"DEBUG - Error in extraction: {str(e)}")
+            return {
+                'error': f"Error processing Aadhaar data: {str(e)}",
+                'success': False
+            }
 
 # Global OCR service instance
 ocr_service = None

@@ -1,29 +1,282 @@
 ﻿@import "tailwindcss";
-
+/* Professional Teal Color Scheme */
 :root {
-  --sui-blue: #4DA2FF;
+  --teal-primary: #005F73;
+  --teal-secondary: #0A9396;
+  --teal-accent: #94D2BD;
+  --teal-light: #E9F6F7;
+  --teal-dark: #003840;
+  --gray-50: #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-600: #475569;
+  --gray-900: #0F172A;
 }
 
-.sui-button {
-  background: linear-gradient(135deg, var(--sui-blue), #2563eb);
+/* Base styles for accessibility */
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  color: var(--gray-900);
+}
+
+/* Button Components */
+.teal-button {
+  background: linear-gradient(135deg, var(--teal-primary), var(--teal-secondary));
   color: white;
   padding: 0.75rem 1.5rem;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 4px 6px rgba(77, 162, 255, 0.2);
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 95, 115, 0.2);
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-.sui-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(77, 162, 255, 0.4);
+.teal-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 95, 115, 0.3);
+  background: linear-gradient(135deg, var(--teal-dark), var(--teal-primary));
 }
 
-.sui-card {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(229, 231, 235, 0.5);
+.teal-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 4px rgba(0, 95, 115, 0.1);
+}
+
+.teal-button-secondary {
+  background: transparent;
+  color: var(--teal-primary);
+  border: 2px solid var(--teal-primary);
+  padding: 0.6875rem 1.375rem;
+}
+
+.teal-button-secondary:hover {
+  background: var(--teal-primary);
+  color: white;
+}
+
+/* Card Components */
+.teal-card {
+  background: white;
+  border: 1px solid rgba(148, 210, 189, 0.3);
   border-radius: 1rem;
-  box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 95, 115, 0.1);
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.teal-card:hover {
+  box-shadow: 0 8px 25px rgba(0, 95, 115, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Upload Zone */
+.teal-upload-zone {
+  border: 3px dashed var(--teal-accent);
+  border-radius: 1rem;
+  padding: 3rem 2rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  background: var(--teal-light);
+  cursor: pointer;
+}
+
+.teal-upload-zone:hover {
+  border-color: var(--teal-secondary);
+  background: rgba(148, 210, 189, 0.2);
+}
+
+.teal-upload-zone.dragover {
+  border-color: var(--teal-primary);
+  background: rgba(10, 147, 150, 0.1);
+  transform: scale(1.02);
+}
+
+/* Input Components */
+.teal-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--gray-100);
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.teal-input:focus {
+  outline: none;
+  border-color: var(--teal-secondary);
+  box-shadow: 0 0 0 3px rgba(10, 147, 150, 0.1);
+}
+
+/* Progress Components */
+.teal-progress-bar {
+  width: 100%;
+  height: 0.5rem;
+  background: var(--gray-100);
+  border-radius: 0.25rem;
+  overflow: hidden;
+  margin: 1rem 0;
+}
+
+.teal-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal-primary), var(--teal-secondary));
+  border-radius: 0.25rem;
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.teal-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.2) 25%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 50%,
+    transparent 75%,
+    rgba(255, 255, 255, 0.2) 75%
+  );
+  background-size: 1rem 1rem;
+  animation: progress-stripes 1s linear infinite;
+}
+
+@keyframes progress-stripes {
+  0% { background-position: 0 0; }
+  100% { background-position: 1rem 0; }
+}
+
+/* Step Components */
+.teal-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  transition: all 0.3s ease;
+}
+
+.teal-step.active {
+  background: var(--teal-light);
+  border: 2px solid var(--teal-accent);
+}
+
+.teal-step-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.teal-step-icon.completed {
+  background: var(--teal-primary);
+  color: white;
+}
+
+.teal-step-icon.active {
+  background: var(--teal-secondary);
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.teal-step-icon.inactive {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Loading Animation */
+.teal-loading {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 3px solid var(--gray-100);
+  border-top-color: var(--teal-secondary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Result Card */
+.teal-result-card {
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  border-left: 4px solid;
+}
+
+.teal-result-card.success {
+  background: rgba(148, 210, 189, 0.1);
+  border-left-color: var(--teal-secondary);
+  border: 1px solid rgba(148, 210, 189, 0.3);
+}
+
+.teal-result-card.error {
+  background: rgba(239, 68, 68, 0.1);
+  border-left-color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus styles for better accessibility */
+.teal-button:focus,
+.teal-input:focus {
+  outline: 2px solid var(--teal-secondary);
+  outline-offset: 2px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .teal-card {
+    padding: 1rem;
+  }
+  
+  .teal-upload-zone {
+    padding: 2rem 1rem;
+  }
+  
+  .teal-step {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .teal-step-icon {
+    align-self: center;
+  }
 }
