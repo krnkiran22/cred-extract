@@ -8,6 +8,7 @@ import {
   ArrowRightIcon,
   CameraIcon
 } from '@heroicons/react/24/outline';
+import LiveCamera from './components/LiveCamera';
 
 // Types and Interfaces
 interface AadhaarData {
@@ -31,6 +32,10 @@ interface FaceMatchResult {
   otp_sent?: boolean;
   otp_message?: string;
   phone_number?: string;
+  verification_method?: string;
+  distance?: number;
+  threshold?: number;
+  error_type?: string;
 }
 
 interface StepProps {
@@ -154,13 +159,21 @@ interface ResultDisplayProps {
 }
 
 const TealResultDisplay: React.FC<ResultDisplayProps> = ({ data, type, title, onRetry }) => {
-  // Filter to show only the 3 required fields: DOB, Aadhaar number, and phone number
+  // Filter to show only the 3 required fields for Aadhaar data: DOB, Aadhaar number, and phone number
+  // For face verification, show all relevant data
+  const isAadhaarData = data && typeof data === 'object' && data.aadhaar_number;
   const filteredData = data && typeof data === 'object' ? (() => {
-    const filtered: any = {};
-    if (data.aadhaar_number) filtered.aadhaar_number = data.aadhaar_number;
-    if (data.phone_number) filtered.phone_number = data.phone_number;
-    if (data.dob) filtered.dob = data.dob;
-    return filtered;
+    if (isAadhaarData) {
+      // Filter for Aadhaar data
+      const filtered: any = {};
+      if (data.aadhaar_number) filtered.aadhaar_number = data.aadhaar_number;
+      if (data.phone_number) filtered.phone_number = data.phone_number;
+      if (data.dob) filtered.dob = data.dob;
+      return filtered;
+    } else {
+      // Show all data for face verification or other results
+      return data;
+    }
   })() : data;
 
   return (
@@ -189,7 +202,11 @@ const TealResultDisplay: React.FC<ResultDisplayProps> = ({ data, type, title, on
                 <span className="text-sm font-semibold text-teal-600 uppercase tracking-wide block mb-2">
                   {key === 'aadhaar_number' ? 'Aadhaar Number' : 
                    key === 'phone_number' ? 'Phone Number' : 
-                   key === 'dob' ? 'Date of Birth' : 
+                   key === 'dob' ? 'Date of Birth' :
+                   key === 'match_status' ? 'Verification Status' :
+                   key === 'confidence' ? 'Match Confidence' :
+                   key === 'verification_method' ? 'Detection Method' :
+                   key === 'distance' ? 'Face Distance' :
                    key.replace(/_/g, ' ')}
                 </span>
                 <p className="text-gray-900 font-medium text-lg">{String(value)}</p>
@@ -199,10 +216,28 @@ const TealResultDisplay: React.FC<ResultDisplayProps> = ({ data, type, title, on
         </div>
       )}
       
-      {type === 'error' && (
-        <p className="text-red-700 bg-red-50 p-3 rounded-lg">{
-          typeof data === 'string' ? data : data?.message || 'An error occurred'
-        }</p>
+      {type === 'error' && filteredData && typeof filteredData === 'object' && (
+        <div className="space-y-3">
+          {Object.entries(filteredData).map(([key, value]) => 
+            value ? (
+              <div key={key} className="bg-red-50 p-3 rounded-lg border border-red-200">
+                <span className="text-sm font-semibold text-red-600 uppercase tracking-wide block mb-1">
+                  {key === 'match_status' ? 'Verification Status' :
+                   key === 'confidence' ? 'Match Confidence' :
+                   key === 'verification_method' ? 'Detection Method' :
+                   key === 'distance' ? 'Face Distance' :
+                   key === 'message' ? 'Details' :
+                   key.replace(/_/g, ' ')}
+                </span>
+                <p className="text-red-800 font-medium">{String(value)}</p>
+              </div>
+            ) : null
+          )}
+        </div>
+      )}
+      
+      {type === 'error' && typeof data === 'string' && (
+        <p className="text-red-700 bg-red-50 p-3 rounded-lg border border-red-200">{data}</p>
       )}
     </div>
   );
@@ -277,7 +312,102 @@ const App: React.FC = () => {
     }
   };
 
-  // Step 2: Upload Live Photo and Compare with Aadhaar
+  // Step 2: Live Camera Verification with Liveness Detection
+  const handleLiveCameraCapture = async (capturedFrames: string[]) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (!aadhaarData?.aadhaar_photo_base64) {
+        setError('Aadhaar photo not found. Please upload Aadhaar card first.');
+        return;
+      }
+
+      if (!aadhaarData?.phone_number) {
+        setError('Phone number not found in Aadhaar data. Cannot proceed with verification.');
+        return;
+      }
+
+      if (!capturedFrames || capturedFrames.length === 0) {
+        setError('No live frames captured. Please try again.');
+        return;
+      }
+      
+      // Use the best frame (usually the last one - final straight look)
+      const bestFrame = capturedFrames[capturedFrames.length - 1];
+      
+      // Use the verify-face endpoint with Aadhaar photo and live frame
+      const response = await fetch(`${API_BASE}/api/face/verify-face`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          aadhaar_photo_base64: aadhaarData.aadhaar_photo_base64,
+          live_photo_base64: bestFrame.split(',')[1], // Remove data:image/jpeg;base64, prefix
+          phone_number: aadhaarData.phone_number
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        // Parse specific error types from backend
+        let errorMessage = result.detail || result.message || `HTTP error! status: ${response.status}`;
+        
+        if (errorMessage.includes('No face detected in Aadhaar photo')) {
+          errorMessage = '❌ No face detected in your Aadhaar card. Please upload a clear Aadhaar image.';
+        } else if (errorMessage.includes('No face detected in live photo')) {
+          errorMessage = '❌ No face detected in the live photo. Please ensure your face is clearly visible.';
+        } else if (errorMessage.includes('Multiple faces detected in Aadhaar photo')) {
+          errorMessage = '❌ Multiple faces found in Aadhaar photo. Please use an Aadhaar with only one person.';
+        } else if (errorMessage.includes('Multiple faces detected in live photo')) {
+          errorMessage = '❌ Multiple faces detected. Please ensure only you are visible in the photo.';
+        } else if (errorMessage.includes('Face too small')) {
+          errorMessage = '❌ Face is too small or unclear. Please move closer to the camera.';
+        }
+        
+        setError(errorMessage);
+        return;
+      }
+      
+      if (result.success && result.data) {
+        setFaceResult(result.data);
+        
+        if (result.data.match) {
+          // Face verification successful - now user can manually generate OTP
+          setPhoneNumber(aadhaarData.phone_number);
+          setCurrentStep(3); // Move to Generate OTP step
+          setError(null);
+        } else {
+          // Face verification failed - show specific error based on error type
+          let failureMessage = result.data.message;
+          
+          if (result.data.error_type === 'no_face_aadhaar') {
+            failureMessage = '❌ No face detected in Aadhaar photo';
+          } else if (result.data.error_type === 'no_face_live') {
+            failureMessage = '❌ No face detected in live photo';
+          } else if (result.data.error_type === 'multiple_faces_aadhaar') {
+            failureMessage = '❌ Multiple faces detected in Aadhaar photo';
+          } else if (result.data.error_type === 'multiple_faces_live') {
+            failureMessage = '❌ Multiple faces detected in live photo';
+          } else {
+            failureMessage = `❌ Face verification failed - faces do not match (${result.data.confidence?.toFixed(1)}% confidence)`;
+          }
+          
+          setError(failureMessage);
+        }
+      } else {
+        setError(result.message || 'Live face verification failed. Please try again.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Live face verification failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Legacy photo upload handler (kept for fallback)
   const handleLivePhotoUpload = async (file: File) => {
     setIsLoading(true);
     setError(null);
@@ -309,24 +439,27 @@ const App: React.FC = () => {
         }),
       });
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
       const result = await response.json();
+      
+      if (!response.ok) {
+        // Handle specific backend errors (400, 500, etc.)
+        const errorMessage = result.detail || result.message || `HTTP error! status: ${response.status}`;
+        setError(errorMessage);
+        return;
+      }
       
       if (result.success && result.data) {
         setFaceResult(result.data);
         
-        if (result.data.match && result.data.otp_sent) {
-          // Face verification successful and OTP sent automatically
+        if (result.data.match) {
+          // Face verification successful - now user can manually generate OTP
           setPhoneNumber(aadhaarData.phone_number);
-          setCurrentStep(3); // Move to OTP verification step
+          setCurrentStep(3); // Move to Generate OTP step
           setError(null);
-        } else if (result.data.match && !result.data.otp_sent) {
-          setError(`Face verification successful but ${result.data.otp_message || 'failed to send OTP'}`);
         } else {
-          setError('Face verification failed. The uploaded photos do not match.');
+          // Face verification failed - show detailed reason
+          const failureMessage = result.data.message || 'Face verification failed. The faces do not match with sufficient confidence.';
+          setError(`Face verification failed: ${failureMessage}`);
         }
       } else {
         setError(result.message || 'Face comparison failed. Please try again.');
@@ -413,8 +546,8 @@ const App: React.FC = () => {
     },
     {
       number: 2,
-      title: "Live Photo Verification",
-      description: "Take or upload a current photo for face verification",
+      title: "Live Face Verification",
+      description: "Complete liveness detection with camera: look straight, turn left/right, open mouth",
       icon: <CameraIcon className="w-8 h-8" />,
       isActive: currentStep === 2,
       isCompleted: currentStep > 2
@@ -523,17 +656,33 @@ const App: React.FC = () => {
                 />
               )}
 
-              {/* Step 2: Live Photo Upload */}
+              {/* Step 2: Live Camera Verification with Liveness Detection */}
               {currentStep === 2 && (
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload Live Photo</h2>
-                  <TealFileUpload
-                    onFileSelect={handleLivePhotoUpload}
-                    accept="image/*"
-                    title="Upload Current Photo"
-                    description="Take or upload a current photo of yourself for face verification"
-                    isLoading={isLoading}
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Live Face Verification</h2>
+                  <p className="text-gray-600 mb-6">
+                    Complete the liveness verification by following the on-screen instructions. 
+                    This ensures you are physically present and prevents photo spoofing.
+                  </p>
+                  <LiveCamera
+                    onCaptureComplete={handleLiveCameraCapture}
+                    onError={setError}
+                    isActive={currentStep === 2}
                   />
+                  
+                  {/* Fallback: Photo Upload Option */}
+                  <div className="mt-8 pt-6 border-t border-gray-200">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Camera not working? Upload a photo instead
+                    </h3>
+                    <TealFileUpload
+                      onFileSelect={handleLivePhotoUpload}
+                      accept="image/*"
+                      title="Upload Current Photo"
+                      description="Take or upload a current photo for face verification"
+                      isLoading={isLoading}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -541,12 +690,17 @@ const App: React.FC = () => {
               {faceResult && currentStep > 2 && (
                 <TealResultDisplay 
                   data={{
-                    match_status: faceResult.match ? 'Verified' : 'Failed',
-                    confidence: `${Math.round((faceResult.confidence || 0) * 100)}%`,
+                    verification_status: faceResult.match ? 'Face Verified ✓' : 'Face Verification Failed ✗',
+                    confidence: `${faceResult.confidence?.toFixed(1) || 0}%`,
+                    method: faceResult.verification_method || 'face_recognition',
+                    ...(faceResult.distance !== undefined && { 
+                      face_distance: faceResult.distance.toFixed(3),
+                      threshold: faceResult.threshold?.toFixed(3) || '0.600'
+                    }),
                     message: faceResult.message
                   }} 
                   type={faceResult.match ? 'success' : 'error'} 
-                  title={faceResult.match ? 'Face Verification Successful' : 'Face Verification Failed'} 
+                  title={faceResult.match ? '✅ Face Verification Successful' : '❌ Face Verification Failed'} 
                 />
               )}
 

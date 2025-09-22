@@ -13,3 +13,5 @@ requests==2.31.0
 aiofiles==23.2.1
 twilio>=8.0.0
 python-dotenv>=1.0.0
+deepface>=0.0.95
+tensorflow>=2.20.0

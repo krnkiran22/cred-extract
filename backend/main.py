@@ -15,7 +15,7 @@ load_dotenv()
 
 from app.routers import aadhaar, face, otp
 from app.services.ocr_service import OCRService
-from app.services.yolo_face_service import YOLOFaceService
+from app.services.face_recognition_service import get_face_recognition_service
 from app.services.otp_service import OTPService
 
 # Configure logging
@@ -24,19 +24,19 @@ logger = logging.getLogger(__name__)
 
 # Global services
 ocr_service = None
-yolo_face_service = None
+face_recognition_service = None
 otp_service = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global ocr_service, yolo_face_service, otp_service
+    global ocr_service, face_recognition_service, otp_service
     
-    logger.info("Starting Aadhaar Verification System...")
+    logger.info("Starting Aadhaar Verification System with High-Accuracy Face Recognition...")
     
     # Initialize services
     ocr_service = OCRService()
-    yolo_face_service = YOLOFaceService()
+    face_recognition_service = get_face_recognition_service()
     otp_service = OTPService()
     
     logger.info("All services initialized successfully")

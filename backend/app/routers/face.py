@@ -1,7 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
 from app.models.schemas import APIResponse, FaceMatchRequest
-from app.services.yolo_face_service import get_yolo_face_service, YOLOFaceService
-from app.services.otp_service import get_otp_service, OTPService
+from app.services.face_recognition_service import get_face_recognition_service, HighAccuracyFaceService
 from typing import Optional
 from pydantic import BaseModel
 import base64
@@ -21,10 +20,9 @@ class FaceVerificationRequest(BaseModel):
 @router.post("/verify-face", response_model=APIResponse)
 async def verify_face(
     request: FaceVerificationRequest,
-    yolo_face_service: YOLOFaceService = Depends(get_yolo_face_service),
-    otp_service: OTPService = Depends(get_otp_service)
+    face_service: HighAccuracyFaceService = Depends(get_face_recognition_service)
 ):
-    """Verify live photo against Aadhaar photo using YOLO-based face comparison"""
+    """Verify live photo against Aadhaar photo using face_recognition library"""
     try:
         # Decode base64 images
         try:
@@ -36,78 +34,72 @@ async def verify_face(
                 detail="Invalid base64 image data"
             )
         
-        # Validate both images have faces using YOLO
-        aadhaar_validation = yolo_face_service.validate_face_quality(aadhaar_image_bytes)
+        # Validate both images have faces
+        logger.info("Validating Aadhaar photo...")
+        aadhaar_validation = face_service.validate_face_quality(aadhaar_image_bytes)
         if not aadhaar_validation['is_valid']:
             raise HTTPException(
                 status_code=400,
                 detail=f"Aadhaar photo validation failed: {aadhaar_validation['reason']}"
             )
         
-        live_validation = yolo_face_service.validate_face_quality(live_image_bytes)
+        logger.info("Validating live photo...")
+        live_validation = face_service.validate_face_quality(live_image_bytes)
         if not live_validation['is_valid']:
             raise HTTPException(
                 status_code=400,
                 detail=f"Live photo validation failed: {live_validation['reason']}"
             )
         
-        # Perform YOLO-based face comparison
-        logger.info("Comparing Aadhaar photo with live photo using YOLO")
-        comparison_result = yolo_face_service.compare_faces_yolo(aadhaar_image_bytes, live_image_bytes)
+        # Perform face comparison using OpenCV face recognition
+        logger.info("Comparing faces using OpenCV face recognition...")
+        comparison_result = face_service.compare_faces(request.aadhaar_photo_base64, request.live_photo_base64)
         
-        if not comparison_result['success']:
+        # Check if comparison was successful
+        if comparison_result.get('error_type') == 'COMPARISON_ERROR':
             raise HTTPException(
                 status_code=500,
-                detail=comparison_result.get('error', 'YOLO face comparison failed')
+                detail=comparison_result.get('message', 'Face comparison failed')
+            )
+        
+        # Check for specific error types
+        error_type = comparison_result.get('error_type')
+        if error_type:
+            status_code = 400  # Client error for validation issues
+            if error_type in ['DECODE_ERROR', 'COMPARISON_ERROR']:
+                status_code = 500  # Server error for technical issues
+            
+            raise HTTPException(
+                status_code=status_code,
+                detail=comparison_result.get('message', 'Face verification failed')
             )
         
         match_result = comparison_result['match']
         confidence = comparison_result['confidence']
+        face_distance = comparison_result.get('face_distance', 0)
         
-        logger.info(f"YOLO face verification result: {match_result}, confidence: {confidence:.2f}%")
+        logger.info(f"Face verification result: {match_result}, confidence: {confidence:.1f}%, distance: {face_distance:.3f}")
         
-        # If face verification is successful, automatically send OTP
-        otp_sent = False
-        otp_message = ""
-        
-        if match_result:
-            try:
-                # Generate and send OTP to the phone number
-                otp = otp_service.generate_otp(request.phone_number)
-                otp_sent = otp_service.send_otp_sms(request.phone_number, otp)
-                
-                if otp_sent:
-                    otp_message = f"OTP sent successfully to +91{request.phone_number}"
-                    logger.info(f"OTP sent to {request.phone_number} after successful face verification")
-                else:
-                    otp_message = "Face verified but failed to send OTP. Please try again."
-                    logger.error(f"Failed to send OTP to {request.phone_number}")
-                    
-            except Exception as otp_error:
-                logger.error(f"Error sending OTP: {str(otp_error)}")
-                otp_message = f"Face verified but OTP error: {str(otp_error)}"
-        else:
-            otp_message = "Face verification failed. OTP not sent."
+        # Return face verification result
+        verification_message = comparison_result['message']
         
         return APIResponse(
             success=True,
-            message=f"Face verification completed with {confidence:.1f}% confidence. {otp_message}",
+            message=verification_message,
             data={
                 'match': match_result,
-                'confidence': confidence,
-                'message': comparison_result['message'],
-                'distance': comparison_result.get('distance', 0),
-                'verification_method': 'YOLO',
-                'otp_sent': otp_sent,
-                'otp_message': otp_message,
-                'phone_number': request.phone_number if match_result else None
+                'confidence': round(confidence, 1),
+                'message': verification_message,
+                'face_distance': round(face_distance, 3),
+                'detection_method': comparison_result.get('detection_method', 'OpenCV'),
+                'error_type': error_type
             }
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in YOLO face verification: {str(e)}")
+        logger.error(f"Error in face verification: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Face verification failed: {str(e)}"

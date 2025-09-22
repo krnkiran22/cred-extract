@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@mediapipe/face_mesh": "^0.4.1633559619",
+    "@mediapipe/camera_utils": "^0.3.1620248257",
     "@tailwindcss/vite": "^4.1.13",
     "clsx": "^2.1.1",
     "lucide-react": "^0.544.0",
