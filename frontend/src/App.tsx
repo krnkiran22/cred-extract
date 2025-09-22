@@ -28,6 +28,9 @@ interface FaceMatchResult {
   match: boolean;
   confidence: number;
   message: string;
+  otp_sent?: boolean;
+  otp_message?: string;
+  phone_number?: string;
 }
 
 interface StepProps {
@@ -287,8 +290,13 @@ const App: React.FC = () => {
         setError('Aadhaar photo not found. Please upload Aadhaar card first.');
         return;
       }
+
+      if (!aadhaarData?.phone_number) {
+        setError('Phone number not found in Aadhaar data. Cannot proceed with verification.');
+        return;
+      }
       
-      // Use the verify-face endpoint with both images
+      // Use the verify-face endpoint with both images and phone number
       const response = await fetch(`${API_BASE}/api/face/verify-face`, {
         method: 'POST',
         headers: {
@@ -296,7 +304,8 @@ const App: React.FC = () => {
         },
         body: JSON.stringify({
           aadhaar_photo_base64: aadhaarData.aadhaar_photo_base64,
-          live_photo_base64: livePhotoBase64
+          live_photo_base64: livePhotoBase64,
+          phone_number: aadhaarData.phone_number
         }),
       });
       
@@ -309,13 +318,15 @@ const App: React.FC = () => {
       if (result.success && result.data) {
         setFaceResult(result.data);
         
-        if (result.data.match && aadhaarData?.phone_number) {
+        if (result.data.match && result.data.otp_sent) {
+          // Face verification successful and OTP sent automatically
           setPhoneNumber(aadhaarData.phone_number);
-          setCurrentStep(3);
-        } else if (!result.data.match) {
-          setError('Face verification failed. The uploaded photos do not match.');
+          setCurrentStep(3); // Move to OTP verification step
+          setError(null);
+        } else if (result.data.match && !result.data.otp_sent) {
+          setError(`Face verification successful but ${result.data.otp_message || 'failed to send OTP'}`);
         } else {
-          setError('Face verification successful, but phone number not found in Aadhaar data.');
+          setError('Face verification failed. The uploaded photos do not match.');
         }
       } else {
         setError(result.message || 'Face comparison failed. Please try again.');

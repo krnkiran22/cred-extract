@@ -3,11 +3,33 @@ import string
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 import re
+import os
+from twilio.rest import Client
+import logging
+
+logger = logging.getLogger(__name__)
 
 class OTPService:
     def __init__(self):
         self.otp_storage = {}  # In production, use Redis or database
         self.otp_expiry_minutes = 5  # OTP expires in 5 minutes
+        
+        # Twilio configuration
+        self.twilio_account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+        self.twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+        self.twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
+        
+        # Initialize Twilio client if credentials are provided
+        self.twilio_client = None
+        if self.twilio_account_sid and self.twilio_auth_token:
+            try:
+                self.twilio_client = Client(self.twilio_account_sid, self.twilio_auth_token)
+                logger.info("Twilio client initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Twilio client: {str(e)}")
+                self.twilio_client = None
+        else:
+            logger.warning("Twilio credentials not provided. Using mock SMS implementation.")
     
     def generate_otp(self, phone: str) -> str:
         """Generate 6-digit OTP for phone number"""
@@ -124,19 +146,75 @@ class OTPService:
         return len(expired_phones)
     
     def send_otp_sms(self, phone: str, otp: str) -> bool:
-        """Send OTP via SMS (mock implementation)"""
-        # In production, integrate with SMS service like Twilio, AWS SNS, etc.
+        """Send OTP via SMS using Twilio"""
         try:
-            # Mock SMS sending
-            print(f"SMS: Your Aadhaar verification OTP is {otp}. Valid for {self.otp_expiry_minutes} minutes. Do not share with anyone.")
+            # Format phone number for international format
+            if phone.startswith('91'):
+                formatted_phone = f"+{phone}"
+            elif phone.startswith('+91'):
+                formatted_phone = phone
+            else:
+                formatted_phone = f"+91{phone}"
             
-            # Log for development purposes
-            print(f"DEBUG: OTP {otp} generated for phone {phone}")
+            logger.info(f"Formatted phone number: {formatted_phone}")
+            
+            # Create OTP message
+            message_body = f"Your Aadhaar verification OTP is {otp}. Valid for {self.otp_expiry_minutes} minutes. Do not share with anyone. - SuiFoundry"
+            
+            # Send via Twilio if available
+            if self.twilio_client and self.twilio_phone_number:
+                try:
+                    logger.info(f"Sending SMS from {self.twilio_phone_number} to {formatted_phone}")
+                    message = self.twilio_client.messages.create(
+                        body=message_body,
+                        from_=self.twilio_phone_number,
+                        to=formatted_phone
+                    )
+                    
+                    logger.info(f"SMS sent successfully via Twilio. SID: {message.sid}")
+                    logger.info(f"Message status: {message.status}")
+                    
+                    # Check message status after a brief delay
+                    import time
+                    time.sleep(2)  # Wait 2 seconds
+                    
+                    # Fetch updated message status
+                    try:
+                        updated_message = self.twilio_client.messages(message.sid).fetch()
+                        logger.info(f"Updated message status: {updated_message.status}")
+                        if updated_message.error_code:
+                            logger.error(f"Twilio error code: {updated_message.error_code} - {updated_message.error_message}")
+                    except Exception as status_error:
+                        logger.warning(f"Could not fetch message status: {str(status_error)}")
+                    
+                    return True
+                    
+                except Exception as twilio_error:
+                    logger.error(f"Twilio SMS failed: {str(twilio_error)}")
+                    # Fall back to mock implementation
+                    return self._send_mock_sms(phone, otp, message_body)
+            else:
+                # Use mock implementation if Twilio is not configured
+                return self._send_mock_sms(phone, otp, message_body)
+        
+        except Exception as e:
+            logger.error(f"Error sending SMS: {str(e)}")
+            return False
+    
+    def _send_mock_sms(self, phone: str, otp: str, message_body: str) -> bool:
+        """Mock SMS implementation for development/testing"""
+        try:
+            logger.info("Using mock SMS implementation")
+            print(f"\n{'='*50}")
+            print(f"📱 MOCK SMS TO: +91{phone}")
+            print(f"📩 MESSAGE: {message_body}")
+            print(f"🔐 OTP: {otp}")
+            print(f"{'='*50}\n")
             
             return True
         
         except Exception as e:
-            print(f"Error sending SMS: {str(e)}")
+            logger.error(f"Mock SMS error: {str(e)}")
             return False
 
 # Global OTP service instance

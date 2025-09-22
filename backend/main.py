@@ -7,6 +7,11 @@ from fastapi.responses import JSONResponse
 import uvicorn
 import logging
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 from app.routers import aadhaar, face, otp
 from app.services.ocr_service import OCRService
