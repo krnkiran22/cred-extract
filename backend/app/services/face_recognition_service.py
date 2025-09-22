@@ -92,7 +92,7 @@ class HighAccuracyFaceService:
                 "confidence": round(confidence, 1),
                 "face_distance": round(distance, 4),
                 "message": message,
-                "error_type": None if is_verified else "FACE_MISMATCH",
+                "error_type": None,  # Face mismatch is a legitimate result, not an error
                 "detection_method": "DeepFace-VGG"
             }
             

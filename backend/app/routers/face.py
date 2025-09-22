@@ -55,25 +55,17 @@ async def verify_face(
         logger.info("Comparing faces using OpenCV face recognition...")
         comparison_result = face_service.compare_faces(request.aadhaar_photo_base64, request.live_photo_base64)
         
-        # Check if comparison was successful
-        if comparison_result.get('error_type') == 'COMPARISON_ERROR':
-            raise HTTPException(
-                status_code=500,
-                detail=comparison_result.get('message', 'Face comparison failed')
-            )
-        
-        # Check for specific error types
+        # Check for technical/system errors (not face mismatch)
         error_type = comparison_result.get('error_type')
-        if error_type:
-            status_code = 400  # Client error for validation issues
-            if error_type in ['DECODE_ERROR', 'COMPARISON_ERROR']:
-                status_code = 500  # Server error for technical issues
-            
+        if error_type and error_type in ['DECODE_ERROR', 'COMPARISON_ERROR', 'NO_FACE_REFERENCE', 'NO_FACE_LIVE', 'MULTIPLE_FACES_REFERENCE', 'MULTIPLE_FACES_LIVE']:
+            # These are technical errors, not legitimate verification results
+            status_code = 500 if error_type in ['DECODE_ERROR', 'COMPARISON_ERROR'] else 400
             raise HTTPException(
                 status_code=status_code,
                 detail=comparison_result.get('message', 'Face verification failed')
             )
         
+        # Face mismatch is a legitimate result, not an error
         match_result = comparison_result['match']
         confidence = comparison_result['confidence']
         face_distance = comparison_result.get('face_distance', 0)
